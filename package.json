@@ -1,6 +1,6 @@
 {
   "name": "cai-core",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "CAI™ Core — Cooperative AI Memory Architecture · Reference Implementation · Designed to Be Copied",
   "homepage": "https://mnemosynec.ai",
   "private": false,

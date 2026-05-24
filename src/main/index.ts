@@ -432,13 +432,21 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('cai-core:substrated-manifest', () => substratedFolders?.getManifest() ?? []);
 
-  // ── CFP Federation (v0.1.8) ───────────────────────────────────────────────────
+  // ── CFP Federation (v0.1.9) ───────────────────────────────────────────────────
   ipcMain.handle('cfp:getManifest', () => getCfpServer().getLocalManifest());
   ipcMain.handle('cfp:getPeers', () => getCfpServer().getPeers());
   ipcMain.handle('cfp:federateManifest', (_event, peerId: string, cathedralId: string) =>
     getCfpServer().federateManifest(peerId, cathedralId),
   );
   ipcMain.handle('cfp:getCathedralId', () => getCfpServer().getCathedralId());
+
+  ipcMain.handle('cfp:request-body', async (_event, peerId: string, ebletId: string) => {
+    const peerIp = getCfpServer().getPeerIp(peerId);
+    if (!peerIp) {
+      return { ok: false, ebletId, error: `Peer ${peerId} not found in discovery table` };
+    }
+    return getCfpServer().requestEbletBody(peerIp, ebletId);
+  });
 
   // ── App / shell ───────────────────────────────────────────────────────────────
   ipcMain.handle('app:version', () => app.getVersion());

@@ -1,19 +1,23 @@
 /**
- * CAI™ Core — Cathedral Federation Protocol (CFP) Scaffold
- * v0.1.8 · KniPr006
+ * CAI™ Core — Cathedral Federation Protocol (CFP)
+ * v0.1.9 · KniPr006 + NOVACULI SAGA-p
  *
- * Cathedral Federation Protocol — manifest exchange only.
- * Body exchange deferred to v0.1.9+.
+ * v0.1.9 adds full body exchange (TCP 42425):
+ *   sha256-verify on receive · acceptance-handshake per CFP spec
  *
  * MCP tool: cai_federate_manifest
  *   Accepts: { peer_id, cathedral_id }
  *   Returns: manifest (list of Eblet™ IDs + topics + sha256 hashes, NOT content bodies)
  *
+ * IPC channel: cfp:request-body
+ *   Accepts: { peerIp, ebletId, requestingPeerId }
+ *   Returns: CfpBodyExchangeResult (body + sha256 on success)
+ *
  * UDP multicast discovery: 239.255.42.42:42424
  *   30s beacon · 90s peer expiry
+ * TCP body exchange: port 42425 (discovery + 1)
  *
  * Federation URI scheme: cai://federate/{cathedral-id}
- *   (scheme defined; body exchange deferred to v0.1.9)
  *
  * SSPL-1.0 + Cooperative Patent Pledge #2260
  */
@@ -23,6 +27,7 @@ import { createHash, randomUUID } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { homedir, hostname } from 'os';
+import { CfpBodyExchange, type CfpBodyRequest, type CfpBodyExchangeResult } from './cfp_body_exchange.js';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -126,10 +131,12 @@ export class CfpFederationServer {
   private beaconTimer: ReturnType<typeof setInterval> | null = null;
   private peers: Map<string, CfpPeer> = new Map();
   private localManifest: CfpManifestEntry[] = [];
+  private bodyExchange: CfpBodyExchange;
 
   constructor() {
     this.cathedralId = getOrCreateCathedralId();
     this.peers = new Map(loadPeers().map((p) => [p.peer_id, p]));
+    this.bodyExchange = new CfpBodyExchange(this.cathedralId);
     console.log(`[CFP] Cathedral ID: ${this.cathedralId}`);
   }
 
@@ -143,7 +150,7 @@ export class CfpFederationServer {
     ensureFedDirs();
     const manifest: CfpManifest = {
       cathedral_id: this.cathedralId,
-      version: '0.1.8',
+      version: '0.1.9',
       entries,
       generated_at: new Date().toISOString(),
     };
@@ -155,7 +162,7 @@ export class CfpFederationServer {
   getLocalManifest(): CfpManifest {
     return {
       cathedral_id: this.cathedralId,
-      version: '0.1.8',
+      version: '0.1.9',
       entries: this.localManifest,
       generated_at: new Date().toISOString(),
     };
@@ -188,7 +195,7 @@ export class CfpFederationServer {
       };
     }
 
-    // Manifest body exchange deferred to v0.1.9 — return stub
+    // Peer manifest: return cached stub — body exchange is separate (TCP 42425 / cfp:request-body)
     return {
       ok: true,
       peer_id: peerId,
@@ -196,12 +203,36 @@ export class CfpFederationServer {
       uri,
       manifest: {
         cathedral_id: requestedCathedralId,
-        version: '0.1.8-stub',
+        version: '0.1.9-remote',
         entries: [],
         generated_at: new Date().toISOString(),
       },
-      error: 'Body exchange deferred to v0.1.9. Manifest schema returned as stub — peer acknowledged via UDP discovery.',
     };
+  }
+
+  /**
+   * Request an Eblet body from a peer by IP.
+   * Called via IPC channel cfp:request-body (v0.1.9+).
+   * sha256 verified on receive; acceptance handshake sent automatically.
+   */
+  async requestEbletBody(
+    peerIp: string,
+    ebletId: string,
+    requestingPeerId?: string,
+  ): Promise<CfpBodyExchangeResult> {
+    const request: CfpBodyRequest = {
+      requestId: randomUUID(),
+      ebletId,
+      requestingPeerId: requestingPeerId ?? this.cathedralId,
+      timestamp: new Date().toISOString(),
+    };
+    return this.bodyExchange.requestBody(peerIp, request);
+  }
+
+  /** Resolve a peer's IP from its peer ID. Returns null if peer unknown/evicted. */
+  getPeerIp(peerId: string): string | null {
+    this.evictStalePeers();
+    return this.peers.get(peerId)?.address ?? null;
   }
 
   getPeers(): CfpPeer[] {
@@ -209,9 +240,12 @@ export class CfpFederationServer {
     return Array.from(this.peers.values());
   }
 
-  /** Start UDP multicast beacon + listener */
-  startDiscovery(): void {
+  /** Start UDP multicast beacon + listener + TCP body-exchange server */
+  startDiscovery(getEbletBody?: (ebletId: string) => string | null): void {
     if (this.socket) return;
+
+    // Start TCP body-exchange server (v0.1.9)
+    this.bodyExchange.startServer(getEbletBody ?? (() => null));
 
     try {
       const sock = createSocket({ type: 'udp4', reuseAddr: true });
@@ -273,6 +307,7 @@ export class CfpFederationServer {
       try { this.socket.close(); } catch { /* non-fatal */ }
       this.socket = null;
     }
+    this.bodyExchange.stopServer();
   }
 
   private sendBeacon(): void {
@@ -282,8 +317,9 @@ export class CfpFederationServer {
       peer_id: this.cathedralId,
       cathedral_id: this.cathedralId,
       port: MULTICAST_PORT,
+      body_exchange_port: CfpBodyExchange.BODY_EXCHANGE_PORT,
       entry_count: this.localManifest.length,
-      version: '0.1.8',
+      version: '0.1.9',
     });
     const buf = Buffer.from(beacon, 'utf-8');
     this.socket.send(buf, MULTICAST_PORT, MULTICAST_GROUP, (err) => {
