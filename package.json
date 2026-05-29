@@ -5,6 +5,11 @@
   "homepage": "https://mnemosynec.ai",
   "private": false,
   "license": "SSPL-1.0",
+  "files": [
+    "dist",
+    "src",
+    "package.json"
+  ],
   "main": "dist/main/main/index.js",
   "exports": {
     ".": "./dist/main/main/index.js",
