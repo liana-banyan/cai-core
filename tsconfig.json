@@ -23,7 +23,9 @@
     "src/wrasse/**/*",
     "src/mcp/**/*",
     "src/autobaton/**/*",
-    "src/banyan_metric/**/*"
+    "src/banyan_metric/**/*",
+    "src/tools/**/*",
+    "src/dns/**/*"
   ],
   "exclude": ["node_modules", "dist"]
 }

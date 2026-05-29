@@ -17,6 +17,7 @@
     "src/mcp/**/*",
     "src/autobaton/**/*",
     "src/banyan_metric/**/*",
-    "src/tools/**/*"
+    "src/tools/**/*",
+    "src/dns/**/*"
   ]
 }
