@@ -1,12 +1,20 @@
 /**
- * cloudflare_emit.ts — Soccerball SIDs as Cloudflare TXT records
- * caithedral-core BP063 · POCKET-6 SOCCERBALL-OVER-DNS
+ * cloudflare_emit.ts — TOMBSTONE · BP063 PATH C · 2026-05-29
  *
- * Emits and manages soccerball SID TXT records on s.lianabanyan.com (and
- * face-path subdomains like 0.s.lianabanyan.com) using the Cloudflare v4 API.
+ * ⚠  THIS MODULE IS DEPRECATED AND NO LONGER USED FOR EMISSION.
  *
- * Least-privilege: Zone:Edit on lianabanyan.com only.
- * Token: CLOUDFLARE_API_TOKEN env var (never echoed).
+ * Root cause: lianabanyan.com is authoritative on Google Cloud DNS
+ * (ns-cloud-a*.googledomains.com). Cloudflare is NOT in the DNS path.
+ * TXT records written here would NXDOMAIN on any real resolver.
+ *
+ * Replacement: src/dns/google_dns_emit.ts (PATH C — Google Cloud DNS REST API)
+ * DoH resolver:  src/dns/doh_resolve.ts (unchanged — provider-agnostic)
+ * Proof runner:  src/dns/soccerball_over_dns_proof.ts (updated to GCP emitter)
+ *
+ * This file is kept as a tombstone so that existing imports do not hard-break
+ * until callers are migrated. All exports remain but are intentionally inert
+ * when the GCP emitter is preferred.
+ *
  * Canon: canon_dns_as_pocket_universe_resolver_re_use_existing_infrastructure_bp060
  */
 
